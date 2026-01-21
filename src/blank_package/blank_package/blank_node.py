@@ -4,6 +4,8 @@ import rclpy
 from rclpy.node import Node
 
 # Fill in something for msg type imports
+from std_msgs.msg import Header
+from sensor_msgs.msg import Range
 from duckietown_msgs.msg import WheelsCmdStamped
 
 class SkeletonNode(Node):
