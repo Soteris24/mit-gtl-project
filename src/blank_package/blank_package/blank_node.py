@@ -31,9 +31,24 @@ class SkeletonNode(Node):
             else:
                 self.start_avoidance()
 
+    def avoidWall(self, msg):
+        distance = msg.range
+        if distance >= 0.2:
+            self.move_forward()
+        else:
+            self.stop()
+            
+        
+
     
     def move_forward(self):
         self.run_wheels('forward_callback', 0.5, 0.5)
+
+    def turn_left(self):
+        self.run_wheels('left_callback', -0.5, 0.5)
+
+    def turn_right(self):
+        self.run_wheels('right_callback', 0.5, -0.5)
 
     def stop(self):
         self.run_wheels('stop_callback', 0.0, 0.0)
@@ -44,7 +59,7 @@ class SkeletonNode(Node):
         self.state = 'avoiding_turn_right'
         self.stop()
         # Step 1: Turn right (left wheel only) for 1 second
-        self.run_wheels('turn_right', 0.5, 0.0)
+        self.turn_right()
         self.avoidance_timer = self.create_timer(1.0, self.avoidance_step_forward)
 
     def avoidance_step_forward(self):
@@ -52,7 +67,7 @@ class SkeletonNode(Node):
         self.avoidance_timer.cancel()
         self.get_logger().info('Going forward...')
         self.state = 'avoiding_forward'
-        self.run_wheels('avoidance_forward', 0.5, 0.5)
+        self.move_forward()
         self.avoidance_timer = self.create_timer(2.0, self.avoidance_step_turn_left)
 
     def avoidance_step_turn_left(self):
@@ -60,7 +75,7 @@ class SkeletonNode(Node):
         self.avoidance_timer.cancel()
         self.get_logger().info('Turning left...')
         self.state = 'avoiding_turn_left'
-        self.run_wheels('turn_left', 0.0, 0.5)
+        self.turn_left()
         self.avoidance_timer = self.create_timer(1.0, self.avoidance_complete)
 
     def avoidance_complete(self):
