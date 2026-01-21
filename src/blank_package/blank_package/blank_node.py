@@ -22,7 +22,7 @@ class SkeletonNode(Node):
     def check_range(self, msg):
         distance = msg.range
         if distance >= 0.1:
-            self.move_forward_callback()
+            self.move_forward()
         else:
             self.stop()
 
@@ -41,7 +41,7 @@ class SkeletonNode(Node):
         wheel_msg.header = header
         wheel_msg.vel_left = vel_left
         wheel_msg.vel_right = vel_right
-        self.wheels_pub.publish(wheel_msg)
+        self.wheel_pub.publish(wheel_msg)
     
 
     # def move_forward_callback(self):
