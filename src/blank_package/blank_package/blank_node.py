@@ -19,7 +19,7 @@ class SkeletonNode(Node):
         # self.get_logger().info('Forward')
 
 
-    def check_range(self):
+    def check_range(self, msg):
         distance = msg.range
         if distance >= 0.1:
             self.move_forward_callback()
