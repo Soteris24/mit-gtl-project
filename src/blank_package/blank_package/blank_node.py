@@ -4,9 +4,9 @@ import rclpy
 from rclpy.node import Node
 
 # Fill in something for msg type imports
-from std_msgs.msg import Header
+from std_msgs.msg import Header, ColorRGBA
 from sensor_msgs.msg import Range
-from duckietown_msgs.msg import WheelsCmdStamped
+from duckietown_msgs.msg import WheelsCmdStamped, LEDPattern
 
 class SkeletonNode(Node):
     def __init__(self):
@@ -15,6 +15,7 @@ class SkeletonNode(Node):
         self.vehicle_name = os.getenv('VEHICLE_NAME')
         self.tof_sub = self.create_subscription(Range, f'/{self.vehicle_name}/range', self.check_range, 10)
         self.wheel_pub = self.create_publisher(WheelsCmdStamped, f'/{self.vehicle_name}/wheels_cmd', 10)
+        self.led_pub = self.create_publisher(LEDPattern, f'/{self.vehicle_name}/led_pattern', 1)  
 
         # State machine for obstacle avoidance
         # States: 'normal', 'avoiding_turn_right', 'avoiding_forward', 'avoiding_turn_left'
@@ -37,9 +38,6 @@ class SkeletonNode(Node):
             self.move_forward()
         else:
             self.stop()
-            
-        
-
     
     def move_forward(self):
         self.run_wheels('forward_callback', 0.2, 0.2)
@@ -56,6 +54,7 @@ class SkeletonNode(Node):
     def start_avoidance(self):
         """Start the obstacle avoidance maneuver"""
         self.get_logger().info('Obstacle detected! Starting avoidance maneuver...')
+        self.set_leds_red()    # Turn the LEDS RED
         self.state = 'avoiding_turn_right'
         self.stop()
         # Step 1: Turn right (left wheel only) for 1 second
@@ -66,6 +65,7 @@ class SkeletonNode(Node):
         """Step 2: Go forward for 2 seconds"""
         self.avoidance_timer.cancel()
         self.get_logger().info('Going forward...')
+        self.set_leds_yellow() # Turn the LEDs yellow when it is in the process of avoiding
         self.state = 'avoiding_forward'
         self.move_forward()
         self.avoidance_timer = self.create_timer(2.0, self.avoidance_step_turn_left)
@@ -82,6 +82,7 @@ class SkeletonNode(Node):
         """Avoidance maneuver complete, resume normal operation"""
         self.avoidance_timer.cancel()
         self.get_logger().info('Avoidance complete, resuming normal operation.')
+        self.set_leds_green()
         self.state = 'normal'
         self.move_forward()
 
@@ -94,7 +95,25 @@ class SkeletonNode(Node):
         wheel_msg.vel_left = vel_left
         wheel_msg.vel_right = vel_right
         self.wheel_pub.publish(wheel_msg)
-    
+
+    def set_leds_red(self):
+        msg = LEDPattern()
+        pattern = ColorRGBA(r=1.0, g=0.0, b=0.0, a=1.0)
+        msg.rgb_vals = [pattern] * 5
+        self.led_pub.publish(msg)
+
+    def set_leds_green(self):
+        msg = LEDPattern()
+        pattern = ColorRGBA(r=0.0, g=1.0, b=0.0, a=1.0)
+        msg.rgb_vals = [pattern] * 5
+        self.led_pub.publish(msg)
+
+    def set_leds_yellow(self):
+        msg = LEDPattern()
+        pattern = ColorRGBA(r=1.0, g=1.0, b=0.0, a=1.0)
+        msg.rgb_vals = [pattern] * 5
+        self.led_pub.publish(msg)
+
 
     # def move_forward_callback(self):
     #     # Create the wheel command message
