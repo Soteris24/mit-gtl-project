@@ -34,7 +34,8 @@ class SkeletonNode(Node):
         #Encoder ticks
         self.left_ticks = 0
         self.right_ticks = 0
-        self.target_ticks = 100
+        self.target_ticks = 0
+        self.initialized = False  # Flag to initialize target from first encoder reading
 
         self.target_timer = self.create_timer(1.0, self.increment_target)
         self.control_timer = self.create_timer(0.1, self.control_loop)  # 10Hz control loop
@@ -68,13 +69,19 @@ class SkeletonNode(Node):
         self.run_wheels('target_tracking', left_speed, right_speed)
 
     def tick_callback(self, msg):
-    # Check the frame_id
+        # Check the frame_id
         if 'left' in msg.header.frame_id:
             self.left_ticks = msg.data
             self.get_logger().info(f'Left ticks: {self.left_ticks}')
         elif 'right' in msg.header.frame_id:
             self.right_ticks = msg.data
             self.get_logger().info(f'Right ticks: {self.right_ticks}')
+
+        # Initialize target to current encoder position on first reading
+        if not self.initialized and self.left_ticks > 0 and self.right_ticks > 0:
+            self.target_ticks = max(self.left_ticks, self.right_ticks)
+            self.initialized = True
+            print(f'Initialized target_ticks to: {self.target_ticks}')
 
     def check_range(self, msg):
         distance = msg.range
