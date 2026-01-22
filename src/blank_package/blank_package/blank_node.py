@@ -29,16 +29,16 @@ class SkeletonNode(Node):
         if self.state == 'normal':
             if distance >= 0.1:
                 self.move_forward()
-            else:
+            elif distance > 0.02:  # Must be > 2cm to be a real obstacle
                 self.start_avoidance()
+            # else: ignore invalid readings (0, negative, etc.)
 
     def avoidWall(self, msg):
         distance = msg.range
         if distance >= 0.1:
             self.move_forward()
-        elif distance > 0.02:  # Must be > 2cm to be a real obstacle
-            self.start_avoidance()
-                                    # else: ignore invalid readings (0, negative, etc.) 
+        else:
+            self.start_avoidance() 
     
     def move_forward(self):
         self.run_wheels('forward_callback', 0.2, 0.2)
