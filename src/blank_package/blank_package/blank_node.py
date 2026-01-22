@@ -2,11 +2,13 @@
 import os
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
 # Fill in something for msg type imports
 from std_msgs.msg import Header, ColorRGBA
 from sensor_msgs.msg import Range
 from duckietown_msgs.msg import WheelsCmdStamped, LEDPattern, WheelEncoderStamped
+
 
 class SkeletonNode(Node):
     def __init__(self):
@@ -21,7 +23,13 @@ class SkeletonNode(Node):
         print(f'Publishing to: /{self.vehicle_name}/wheels_cmd')
         print(f'========================================')
 
-        self.tof_sub = self.create_subscription(Range, f'/{self.vehicle_name}/range', self.check_range, 10)
+        # QoS for sensor data (BEST_EFFORT to match typical sensor publishers)
+        sensor_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10
+        )
+        self.tof_sub = self.create_subscription(Range, f'/{self.vehicle_name}/range', self.check_range, sensor_qos)
         self.wheel_pub = self.create_publisher(WheelsCmdStamped, f'/{self.vehicle_name}/wheels_cmd', 10)
         self.led_pub = self.create_publisher(LEDPattern, f'/{self.vehicle_name}/led_pattern', 1)  
         self.tick_sub = self.create_subscription(WheelEncoderStamped,f'/{self.vehicle_name}/tick',self.tick_callback,10)
@@ -115,7 +123,7 @@ class SkeletonNode(Node):
         self.get_logger().info('Obstacle detected! Starting avoidance maneuver...')
         self.set_leds_red()    # Turn the LEDS RED
         self.state = 'avoiding_turn_right'
-        #self.stop()
+        self.stop()
         # Step 1: Turn right (left wheel only) for 1 second
         self.turn_right()
         self.avoidance_timer = self.create_timer(0.5, self.avoidance_step_forward)
