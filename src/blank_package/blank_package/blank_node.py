@@ -187,17 +187,17 @@ class SkeletonNode(Node):
         self.wheel_pub.publish(wheel_msg)
 
     def move_forward(self):
-        self.run_wheels('forward', 0.25, 0.25)
+        self.run_wheels('forward', 0.5, 0.5)
 
     def turn_left(self):
-        self.run_wheels('left', -0.2, 0.2)
+        self.run_wheels('left', -0.5, 0.5)
 
     def turn_right(self):
-        self.run_wheels('right', 0.2, -0.2)
+        self.run_wheels('right', 0.5, -0.5)
 
     def turn_right_slow(self):
         # Slower turn for better scanning resolution
-        self.run_wheels('scan_right', 0.15, -0.15)
+        self.run_wheels('scan_right', 0.25, -0.25)
 
     def stop(self):
         self.run_wheels('stop', 0.0, 0.0)
