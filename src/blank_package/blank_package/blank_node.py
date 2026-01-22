@@ -6,7 +6,7 @@ from rclpy.node import Node
 # Fill in something for msg type imports
 from std_msgs.msg import Header, ColorRGBA
 from sensor_msgs.msg import Range
-from duckietown_msgs.msg import WheelsCmdStamped, LEDPattern
+from duckietown_msgs.msg import WheelsCmdStamped, LEDPattern, WheelEncoderStamped
 
 class SkeletonNode(Node):
     def __init__(self):
@@ -16,12 +16,45 @@ class SkeletonNode(Node):
         self.tof_sub = self.create_subscription(Range, f'/{self.vehicle_name}/range', self.check_range, 10)
         self.wheel_pub = self.create_publisher(WheelsCmdStamped, f'/{self.vehicle_name}/wheels_cmd', 10)
         self.led_pub = self.create_publisher(LEDPattern, f'/{self.vehicle_name}/led_pattern', 1)  
-
+        self.tick_sub = self.create_subscription(WheelEncoderStamped,f'/{self.vehicle_name}/tick',self.tick_callback,10)
         # State machine for obstacle avoidance
         # States: 'normal', 'avoiding_turn_right', 'avoiding_forward', 'avoiding_turn_left'
         self.state = 'normal'
         self.avoidance_timer = None
+        
+        
+        #Encoder ticks
+        self.left_ticks = 0
+        self.right_ticks = 0
+        self.target_ticks = 0
 
+        self.target_timer = self.create_timer(1.0, self.increment_target)
+
+
+    def increment_target(self):
+        self.target_ticks += 100
+        self.get_logger().info(f'New target: {self.target_ticks}')
+
+    def adjust_with_target(self):
+    # Error
+        left_error = self.target_ticks - self.left_ticks
+        right_error = self.target_ticks - self.right_ticks
+    
+        kp = 0.005
+
+        left_speed = max(0.0, min(1.0, left_speed))
+        right_speed = max(0.0, min(1.0, right_speed))
+    
+        self.run_wheels('target_tracking', left_speed, right_speed)
+
+    def tick_callback(self, msg):
+    # Check the frame_id
+        if 'left' in msg.header.frame_id:
+            self.left_ticks = msg.data
+            self.get_logger().info(f'Left ticks: {self.left_ticks}')
+        elif 'right' in msg.header.frame_id:
+            self.right_ticks = msg.data
+            self.get_logger().info(f'Right ticks: {self.right_ticks}')
 
     def check_range(self, msg):
         distance = msg.range
@@ -31,7 +64,6 @@ class SkeletonNode(Node):
                 self.move_forward()
             elif distance > 0.02:  # Must be > 2cm to be a real obstacle
                 self.start_avoidance()
-            # else: ignore invalid readings (0, negative, etc.)
 
     def avoidWall(self, msg):
         distance = msg.range
