@@ -10,8 +10,8 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('lib/'+package_name,['blank_package/blank_node.py']) #we added this line, add another if more nodes
-    ],
+        ('lib/'+package_name,['blank_package/ToFtest.py']) #we added this line, add another if more nodes
+    ],   # CHANGE THIS TO MAKE THE EXECUTABLE FILE WHATEVER YOU WANT 
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='root',
@@ -25,7 +25,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'blank_node = blank_package.blank_node:main'
+            'blank_node = blank_package.ToFtest:main'
         ],
     },
 )
