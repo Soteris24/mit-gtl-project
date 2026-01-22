@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'blank_package'
+package_name = 'sotos_package'
 
 setup(
     name=package_name,
@@ -10,7 +10,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('lib/'+package_name,['blank_package/blank_node.py']) #we added this line, add another if more nodes
+        ('lib/'+package_name,['sotos_package/sotos_node.py']) #we added this line, add another if more nodes
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -25,7 +25,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'blank_node = blank_package.blank_node:main'
+            'sotos_node = sotos_package.sotos_node:main'
         ],
     },
 )
