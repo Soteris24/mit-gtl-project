@@ -10,165 +10,130 @@ from duckietown_msgs.msg import WheelsCmdStamped, LEDPattern, WheelEncoderStampe
 
 class State(Enum):
     NORMAL = 1
-    AVOID_STEP_1 = 2
-    AVOID_STEP_2 = 3
+    AVOID_TURN_OUT = 2
+    AVOID_DRIVE_PAST = 3
+    AVOID_TURN_IN = 4
 
 class EncoderAvoidanceNode(Node):
     def __init__(self):
         super().__init__('encoder_avoidance_node')
         self.vehicle_name = os.getenv('VEHICLE_NAME')
 
+        # Subscribers
         self.tof_sub = self.create_subscription(Range, f'/{self.vehicle_name}/range', self.check_range, 10)
-        self.wheel_pub = self.create_publisher(WheelsCmdStamped, f'/{self.vehicle_name}/wheels_cmd', 10)
-        self.led_pub = self.create_publisher(LEDPattern, f'/{self.vehicle_name}/led_pattern', 1)  
         self.tick_sub = self.create_subscription(WheelEncoderStamped, f'/{self.vehicle_name}/tick', self.tick_callback, 10)
-
-        #state
-        self.current_state = State.NORMAL
         
-        #encorers
+        # Publishers
+        self.wheel_pub = self.create_publisher(WheelsCmdStamped, f'/{self.vehicle_name}/wheels_cmd', 10)
+        self.led_pub = self.create_publisher(LEDPattern, f'/{self.vehicle_name}/led_pattern', 1)
+
+        # Variables
+        self.state = State.NORMAL
         self.left_ticks = 0
         self.right_ticks = 0
-        
         self.target_left = 0
         self.target_right = 0
-        
-        self.initialized = False 
+        self.initialized = False
 
-        #config 
-        self.ticks_to_turn = 400     
-        self.ticks_step_forward = 100 #
-        self.kp = 0.02               
-
-
-        self.control_timer = self.create_timer(0.1, self.control_loop)
-        
-        # turn timer counter
-        self.state_timer_counter = 0
+        # Config
+        self.TURN_TICKS = 400 #Ticks to turn
+        self.DRIVE_TICKS = 600 #Ticks forwards to drive past obstacle
+        self.NORMAL_SPEED = 20 #Ticks to add per loop in normal mode
+        self.TOLERANCE = 30
+        # Loop
+        self.create_timer(0.1, self.control_loop)
 
     def control_loop(self):
+        if not self.initialized: return
+
+        #  STATE MACHINE
+        if self.state == State.NORMAL:
+            self.set_leds(0, 1, 0) # Green
+
+            self.target_left += self.NORMAL_SPEED
+            self.target_right += self.NORMAL_SPEED
+
+        elif self.state == State.AVOID_TURN_OUT:
+            self.set_leds(1, 0, 0) # Red
+            
+            if self.has_arrived():
+                self.get_logger().info("TMoving Forward")
+                self.target_left += self.DRIVE_TICKS
+                self.target_right += self.DRIVE_TICKS
+                self.state = State.AVOID_DRIVE_PAST
+
+        elif self.state == State.AVOID_DRIVE_PAST:
+            self.set_leds(1, 1, 0) # Yellow
+            if self.has_arrived():
+                
+                self.get_logger().info("Turning Back")
+                
+                self.target_left += self.TURN_TICKS 
+                self.state = State.AVOID_TURN_IN
+
+        elif self.state == State.AVOID_TURN_IN:
+            self.set_leds(1, 1, 0) # Yellow
+            if self.has_arrived():
+                
+                self.get_logger().info("Normal Op")
+                self.state = State.NORMAL
 
         
-        # STATE MACHINE
-        if self.current_state == State.NORMAL:
-            # drive forward
-            self.set_leds(0.0, 1.0, 0.0) # Green
-            self.target_left += self.ticks_step_forward
-            self.target_right += self.ticks_step_forward
+        self.drive_wheels()
 
-        elif self.current_state == State.AVOID_STEP_1:
-            # wai
-            self.set_leds(1.0, 0.0, 0.0) # Red
-            self.state_timer_counter += 1
+    def check_range(self, msg):
+        # Only trigger if we are in normal mode
+        if self.state == State.NORMAL and msg.range < 0.2 and msg.range > 0.01:
+            self.get_logger().info("Turning Left...")
+            self.state = State.AVOID_TURN_OUT
             
-            # If 20 cycles have passed (20 * 0.1s = 2.0 seconds)
-            if self.state_timer_counter >= 20:
-                self.transition_to_step_2()
+            self.target_right += self.TURN_TICKS
 
-        elif self.current_state == State.AVOID_STEP_2:
-            self.set_leds(1.0, 1.0, 0.0) # Yellow
-            self.state_timer_counter += 1
-            
-            # Wait another 2 seconds, then go back to normal
-            if self.state_timer_counter >= 20:
-                self.current_state = State.NORMAL
-                self.get_logger().info("Back to Normal")
+    def has_arrived(self):
+        #small tolerence because encoders are rarely exact
+        diff_l = abs(self.target_left - self.left_ticks)
+        diff_r = abs(self.target_right - self.right_ticks)
+        return diff_l < self.TOLERANCE and diff_r < self.TOLERANCE
 
-        # --- 2. PID Control (Position Control) ---
-        # Drive wheels to match the targets set above
-        self.drive_to_targets()
-
-    def drive_to_targets(self):
-        if not self.initialized:
-            return
-
-        # Calculate Error
+    def drive_wheels(self):
+        # kP contiroller
+        kp = 0.02
+        
         err_l = self.target_left - self.left_ticks
         err_r = self.target_right - self.right_ticks
 
-        # Calculate Command (P-Controller)
-        cmd_l = self.kp * err_l
-        cmd_r = self.kp * err_r
+        cmd_l = max(min(err_l * kp, 0.8), -0.8)
+        cmd_r = max(min(err_r * kp, 0.8), -0.8)
 
-        # Clamp speeds between -1.0 and 1.0
-        cmd_l = max(min(cmd_l, 1.0), -1.0)
-        cmd_r = max(min(cmd_r, 1.0), -1.0)
-
-        # Publish
-        self.run_wheels(cmd_l, cmd_r)
-        
-        # DEBUG
-        # print(f"T_L:{self.target_left} | T_R:{self.target_right} | Err_L:{err_l} | Err_R:{err_r}")
-
-    def check_range(self, msg):
-        distance = msg.range
-        
-        # Only trigger avoidance if we are currently in NORMAL mode
-        if self.current_state == State.NORMAL:
-            if distance < 0.20 and distance > 0.01:
-                self.start_avoidance()
-
-    def start_avoidance(self):
-        self.get_logger().info("OBSTACLE! Starting Avoidance Step 1")
-        self.current_state = State.AVOID_STEP_1
-        self.state_timer_counter = 0
-        
-        # LOGIC: Add ticks to RIGHT wheel only. 
-        # Right wheel moves forward, Left wheel waits.
-        # This causes a LEFT TURN.
-        self.target_right += self.ticks_to_turn
-
-    def transition_to_step_2(self):
-        self.get_logger().info("Step 1 Done. Starting Step 2")
-        self.current_state = State.AVOID_STEP_2
-        self.state_timer_counter = 0
-        
-        # LOGIC: Add ticks to LEFT wheel only.
-        # Left wheel moves forward to catch up.
-        # This causes a RIGHT TURN (realigning).
-        self.target_left += self.ticks_to_turn
+        self.publish_cmd(cmd_l, cmd_r)
 
     def tick_callback(self, msg):
-        # Update current tick counts
-        if 'left' in msg.header.frame_id:
-            self.left_ticks = msg.data
-        elif 'right' in msg.header.frame_id:
-            self.right_ticks = msg.data
-
-        # Initialize targets on first run
+        if 'left' in msg.header.frame_id: self.left_ticks = msg.data
+        if 'right' in msg.header.frame_id: self.right_ticks = msg.data
+        
         if not self.initialized and self.left_ticks > 0 and self.right_ticks > 0:
             self.target_left = self.left_ticks
             self.target_right = self.right_ticks
             self.initialized = True
-            self.get_logger().info(f'Initialized Targets: {self.target_left}')
 
-    def run_wheels(self, vel_left, vel_right):
-        wheel_msg = WheelsCmdStamped()
-        wheel_msg.header.stamp = self.get_clock().now().to_msg()
-        wheel_msg.vel_left = float(vel_left)
-        wheel_msg.vel_right = float(vel_right)
-        self.wheel_pub.publish(wheel_msg)
+    def publish_cmd(self, l, r):
+        msg = WheelsCmdStamped()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.vel_left = float(l)
+        msg.vel_right = float(r)
+        self.wheel_pub.publish(msg)
 
     def set_leds(self, r, g, b):
         msg = LEDPattern()
-        pattern = ColorRGBA(r=r, g=g, b=b, a=1.0)
-        msg.rgb_vals = [pattern] * 5
+        color = ColorRGBA(r=float(r), g=float(g), b=float(b), a=1.0)
+        msg.rgb_vals = [color] * 5
         self.led_pub.publish(msg)
-
-    def stop(self):
-        self.run_wheels(0.0, 0.0)
 
 def main():
     rclpy.init()
     node = EncoderAvoidanceNode()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        node.stop()
-        node.destroy_node()
-        rclpy.shutdown()
+    try: rclpy.spin(node)
+    except KeyboardInterrupt: pass
+    finally: node.destroy_node(); rclpy.shutdown()
 
-if __name__ == '__main__':
-    main()
+if __name__ == '__main__': main()
