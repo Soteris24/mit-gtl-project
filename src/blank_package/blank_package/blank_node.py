@@ -54,7 +54,6 @@ class SkeletonNode(Node):
 
     def increment_target(self):
         self.target_ticks += 100
-        self.get_logger().info(f'New target: {self.target_ticks}')
 
     def adjust_with_target(self):
         # error calculation
@@ -71,25 +70,19 @@ class SkeletonNode(Node):
         left_speed = max(0.0, min(1.0, left_speed))
         right_speed = max(0.0, min(1.0, right_speed))
 
-        # DEBUG: Print calculated speeds
-        print(f'Target: {self.target_ticks} | L_ticks: {self.left_ticks} | R_ticks: {self.right_ticks} | L_speed: {left_speed:.2f} | R_speed: {right_speed:.2f}')
-
         self.run_wheels('target_tracking', left_speed, right_speed)
 
     def tick_callback(self, msg):
         # Check the frame_id
         if 'left' in msg.header.frame_id:
             self.left_ticks = msg.data
-            self.get_logger().info(f'Left ticks: {self.left_ticks}')
         elif 'right' in msg.header.frame_id:
             self.right_ticks = msg.data
-            self.get_logger().info(f'Right ticks: {self.right_ticks}')
 
         # Initialize target to current encoder position on first reading
         if not self.initialized and self.left_ticks > 0 and self.right_ticks > 0:
             self.target_ticks = max(self.left_ticks, self.right_ticks)
             self.initialized = True
-            print(f'Initialized target_ticks to: {self.target_ticks}')
 
     def check_range(self, msg):
         distance = msg.range
@@ -207,7 +200,10 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
-        node.stop() 
+        try:
+            node.stop()
+        except:
+            pass
         node.destroy_node()
         rclpy.shutdown()
 
