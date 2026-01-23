@@ -36,10 +36,10 @@ class EncoderAvoidanceNode(Node):
         self.initialized = False
 
         # Config
-        self.TURN_TICKS = 70 # Ticks to turn 
-        self.DRIVE_TICKS = 300 # Ticks to drive forward
+        self.TURN_TICKS = 110 # Ticks to turn 
+        self.DRIVE_TICKS = 400 # Ticks to drive forward
         self.NORMAL_SPEED = 20 # Speed in normal mode
-        self.TOLERANCE = 10 # Arrival tolerance
+        self.TOLERANCE = 3 # Arrival tolerance
         
         
         self.MAX_SPEED = 0.6      
